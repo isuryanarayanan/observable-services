@@ -1,0 +1,10 @@
+Your One-Time Password (OTP) for email verification
+
+Hello {{email}},
+
+Here is your OTP: {{otp}}
+
+Please enter this OTP to complete the verification process.
+
+Best regards,
+genie@zerodayone

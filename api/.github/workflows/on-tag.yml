@@ -1,0 +1,87 @@
+name: Build and deploy to development server
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag"
+        required: true
+        default: "latest"
+
+jobs:
+  build_docker_images:
+    name: Build docker images
+    runs-on: ubuntu-latest
+    environment: development
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Cache Docker layers
+        uses: actions/cache@v2
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Copy environment variables and dockerfile file for production
+        run: cp environments/development/.env .env && cp environments/development/Dockerfile.deploy Dockerfile
+
+      - name: Copy .ebextensions folder for production
+        run: cp -r environments/development/.ebextensions .ebextensions
+
+      - name: Copy docker-compose file for production
+        run: cp environments/development/docker-compose.deploy.yml docker-compose.yml
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID}}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
+          aws-region: ap-south-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Get the version from the tag
+        id: get_version
+        run: echo "::set-output name=VERSION::${{ github.event.inputs.tag }}"
+
+      - name: Build, tag, and push image to Amazon ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: api-dev-genie
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:${{ steps.get_version.outputs.VERSION }} .
+          docker push -a $ECR_REGISTRY/$ECR_REPOSITORY
+
+      - name: Swap out the :latest tag from the docker-compose file
+        run: sed -i 's/:latest/:${{ steps.get_version.outputs.VERSION }}/g' docker-compose.yml
+
+      - name: Zip docker-compose file .env file and .ebextensions folder
+        run: zip compose.zip docker-compose.yml .env .ebextensions
+
+      - name: Get timestamp
+        id: timestamp
+        run: echo "::set-output name=timestamp::$(date +'%s')"
+
+      - name: Deploy to staging backend EB
+        uses: einaregilsson/beanstalk-deploy@v16
+        with:
+          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          application_name: ${{ secrets.EB_DEVELOPMENT_APP}}
+          environment_name: ${{ secrets.EB_DEVELOPMENT_ENV }}
+          version_label: ${{steps.timestamp.outputs.timestamp}}
+          region: ${{ secrets.EB_DEVELOPMENT_REG }}
+          deployment_package: compose.zip
+
+      - name: Success message
+        run: echo "Successfully deployed to development environment"

@@ -1,0 +1,64 @@
+version: "3.8"
+
+services:
+
+  project-local:
+    container_name: local.project
+    command: python manage.py runserver 0.0.0.0:8000
+    #command: python -m pudb.run manage.py runserver 0.0.0.0:8000
+    # entrypoint: /entrypoint.sh
+    build:
+      context: ../../
+      dockerfile: ./conf/local/Dockerfile
+      args:
+        - USER_ID=$UID
+        - GROUP_ID=$GID
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+      - "6900:6900"
+    volumes:
+      - static_data:/vol/web
+      - ../../project:/app
+    depends_on:
+      - database
+
+  redis:
+    image: redis:alpine
+    container_name: local.redis
+    ports:
+      - "6379:6379"
+
+  celery:
+    container_name: local.celery
+    build:
+      context: ../../
+      dockerfile: ./conf/local/Dockerfile
+      args:
+        - USER_ID=$UID
+        - GROUP_ID=$GID
+    env_file:
+      - .env
+    command: celery -A project.local worker -l debug
+    depends_on:
+      - redis
+    volumes:
+      - static_data:/vol/web
+      - ../../project:/app
+
+  database:
+    image: postgres:13
+    container_name: local.database
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=local_user
+      - POSTGRES_PASSWORD=local_password
+      - POSTGRES_DB=local_database
+    volumes:
+      - database_data:/var/lib/postgresql/data
+
+volumes:
+  static_data:
+  database_data:

@@ -1,0 +1,89 @@
+name: Update version and create a tag
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  tag_version:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Get the latest tag or 0.0.0
+        id: get_version
+        run: |
+          if [ -z "$(git tag -l)" ]; then
+            echo "::set-output name=VERSION::0.0.0"
+          else
+            echo "::set-output name=VERSION::$(git tag -l | sort -V | tail -1)"
+          fi
+
+      # Latest branch
+      - name: Get the branch name which has been merged to main branch
+        id: get_branch_name
+        run: echo "::set-output name=BRANCH_NAME::$(git log --all --pretty=format:'%s' | grep 'Merge pull request' | awk -F'from ' '{print $2}' | awk '{print $1}' | tail -1)"
+
+      # Branch type from the latest branch
+      - name: Get the branch type
+        id: get_branch_type
+        run: echo "::set-output name=BRANCH_TYPE::$(echo ${{ steps.get_branch_name.outputs.BRANCH_NAME }} | awk -F'/' '{print $2}')"
+
+      # Branch type object
+      - name: Get the branch types from the branch_types.json file, returns a string
+        id: get_branch_types
+        run: echo "::set-output name=BRANCH_TYPES::$(cat .genie/branch_types.json | jq -r '.[] | join(" ")' | awk '{print $1}')"
+
+      # Check if the branch type from the latest branch exists as a flag inside the branch_types.json file
+      - name: If the branch type does not exist as a flag inside the branch_types file inside .genie/branch_types.json
+        if: ${{ !contains(steps.get_branch_types.outputs.BRANCH_TYPES, steps.get_branch_type.outputs.BRANCH_TYPE) }}
+        run: echo "The branch type does not exist as a flag inside the branch_types file inside .genie/branch_types.json"
+
+      # Get the version associated with the branch type
+      - name: Get the version associated with the branch type
+        id: get_version_type
+        run: echo "::set-output name=VERSION::$(cat .genie/branch_types.json | jq -r '.[] | select(.flag == "${{ steps.get_branch_type.outputs.BRANCH_TYPE }}") ' | jq '.version')"
+
+      # Based on the version if its major, minor or patch we will increment the version
+      - name: Increment the version
+        id: increment_version
+        run: |
+          echo "::set-output name=VERSION::$(echo ${{ steps.get_version.outputs.VERSION }} | awk -F'.' -v version_type=${{ steps.get_version_type.outputs.VERSION }} '{if(version_type == "major") print $1+1".0.0"; else if(version_type == "minor") print $1"."$2+1".0"; else if(version_type == "patch") print $1"."$2"."$3+1}')"
+
+      # Print the version
+      - name: Print the version
+        run: echo ${{ steps.increment_version.outputs.VERSION }}
+
+      # Print the original version
+      - name: Print the original version
+        run: echo ${{ steps.get_version.outputs.VERSION }}
+
+      - name: Create a tag
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git tag -a ${{ steps.increment_version.outputs.VERSION }} -m "Release ${{ steps.increment_version.outputs.VERSION }}"
+          git push --tags
+
+      - name: Run the on-tag.yml workflow
+        uses: benc-uk/workflow-dispatch@v1
+        with:
+          workflow: Build and deploy to development server
+          token: ${{ secrets.GITHUB_TOKEN }}
+          inputs: '{"tag": "${{ steps.increment_version.outputs.VERSION }}"}'
+
+      # Update the version number inside the repository
+      - name: Update Version Number to .genie/VERSION file
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          echo ${{ steps.increment_version.outputs.VERSION }} > .genie/VERSION
+          git add .
+          git commit -m "Update version number to ${{ steps.increment_version.outputs.VERSION }}"
+          git push

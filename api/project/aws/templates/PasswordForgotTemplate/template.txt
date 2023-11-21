@@ -1,0 +1,10 @@
+Your One-Time Password (OTP) for Password Change
+
+Hello {{email}},
+
+Here is your OTP: {{otp}}
+
+Please enter this OTP to complete your password change.
+
+Best regards,
+genie@zerodayone

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #ffffff;
+        border: 1px solid #cccccc;
+      }
+      h1 {
+        font-size: 24px;
+        margin-bottom: 10px;
+      }
+      p {
+        font-size: 16px;
+        line-height: 1.5;
+      }
+      .otp {
+        font-weight: bold;
+        font-size: 18px;
+        background-color: #f8f9fa;
+        padding: 10px;
+        margin: 10px 0;
+        display: inline-block;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Your One-Time Password (OTP) for email verification</h1>
+      <p>Hello {{email}},</p>
+      <p>Here is your OTP:</p>
+      <div class="otp">{{otp}}</div>
+      <p>Please enter this OTP to complete the verification process.</p>
+      <p>Best regards,</p>
+      <p>genie@zerodayone</p>
+    </div>
+  </body>
+</html>

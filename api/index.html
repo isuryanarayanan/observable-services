@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>WebSocket Example</title>
+    <!-- include Bootstrap CSS via CDN -->
+    <link
+      rel="stylesheet"
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+    />
+  </head>
+  <body>
+    <div class="container">
+      <h1>WebSocket Example</h1>
+      <button id="connect-btn" class="btn btn-primary">Connect</button>
+      <button id="disconnect-btn" class="btn btn-danger" disabled>
+        Disconnect
+      </button>
+      <form id="query-form">
+        <div class="form-group mt-3">
+          <label for="app-input">App Name:</label>
+          <input
+            type="text"
+            class="form-control"
+            id="app-input"
+            name="app"
+            required
+          />
+        </div>
+        <div class="form-group mt-3">
+          <label for="operation-input">Operation Name:</label>
+          <input
+            type="text"
+            class="form-control"
+            id="operation-input"
+            name="operation"
+            required
+          />
+        </div>
+        <div class="form-group mt-3">
+          <label for="variables-container">Variables:</label>
+          <div id="variables-container"></div>
+          <button
+            id="add-variable-btn"
+            type="button"
+            class="btn btn-success mt-3"
+          >
+            Add Variable
+          </button>
+        </div>
+        <button
+          id="send-btn"
+          type="submit"
+          class="btn btn-primary mt-3"
+          disabled
+        >
+          Send Query
+        </button>
+      </form>
+      <div class="form-group mt-3">
+        <label for="token-input">Token:</label>
+        <input type="text" class="form-control" id="token-input" name="token" />
+      </div>
+      <button id="save-token-btn" type="button" class="btn btn-primary mt-3">
+        Save Token
+      </button>
+      <div id="response" class="mt-3"></div>
+    </div>
+
+    <!-- include Bootstrap JS and jQuery via CDN -->
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+
+    <script>
+      // WebSocket instance
+      let ws = null;
+
+      // DOM elements
+      const connectBtn = document.getElementById("connect-btn");
+      const disconnectBtn = document.getElementById("disconnect-btn");
+      const queryForm = document.getElementById("query-form");
+      const appInput = document.getElementById("app-input");
+      const operationInput = document.getElementById("operation-input");
+      const variablesContainer = document.getElementById("variables-container");
+      const addVariableBtn = document.getElementById("add-variable-btn");
+      const sendBtn = document.getElementById("send-btn");
+      const responseDiv = document.getElementById("response");
+      const tokenInput = document.getElementById("token-input");
+      const saveTokenBtn = document.getElementById("save-token-btn");
+
+      // token variable
+      let token = localStorage.getItem("token");
+
+      // set token input value
+      tokenInput.value = token;
+
+      // connect button click handler
+      connectBtn.addEventListener("click", () => {
+        ws = new WebSocket("ws://localhost:8000/ws/genie/");
+        ws.addEventListener("open", () => {
+          console.log("WebSocket connection opened.");
+          connectBtn.disabled = true;
+          disconnectBtn.disabled = false;
+          sendBtn.disabled = false;
+        });
+
+        ws.addEventListener("message", (event) => {
+          console.log("Received message:", event.data);
+          responseDiv.innerText = event.data;
+        });
+
+        ws.addEventListener("close", () => {
+          console.log("WebSocket connection closed.");
+          connectBtn.disabled = false;
+          disconnectBtn.disabled = true;
+          sendBtn.disabled = true;
+          ws = null;
+        });
+      });
+
+      // disconnect button click handler
+      disconnectBtn.addEventListener("click", () => {
+        if (ws) {
+          ws.close();
+        }
+      });
+
+      // query form submit handler
+      queryForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (ws) {
+          const app = appInput.value;
+          const operation = operationInput.value;
+          const variables = [];
+          const variableInputs =
+            variablesContainer.querySelectorAll(".variable-input");
+          for (const variableInput of variableInputs) {
+            const name = variableInput.querySelector(
+              ".variable-name-input"
+            ).value;
+            const value = variableInput.querySelector(
+              ".variable-value-input"
+            ).value;
+            // Append value to variables array
+            variables.push(value);
+          }
+          const message = {
+            app,
+            code: "unique_code",
+            operation,
+            variables,
+          };
+          ws.send(JSON.stringify({ query: message, token: token }));
+        }
+      });
+
+      // add variable button click handler
+      addVariableBtn.addEventListener("click", () => {
+        const variableDiv = document.createElement("div");
+        variableDiv.classList.add("row", "variable-input");
+        variableDiv.innerHTML = `
+      <div class="col-md-4 py-1">
+        <input type="text" class="form-control variable-name-input" placeholder="Variable name" required>
+      </div>
+      <div class="col-md-6 py-1">
+        <input type="text" class="form-control variable-value-input" placeholder="Variable value" required>
+      </div>
+      <div class="col-md-2 py-1">
+        <button type="button" class="btn btn-danger remove-variable-btn">Remove</button>
+      </div>
+    `;
+        const removeVariableBtn = variableDiv.querySelector(
+          ".remove-variable-btn"
+        );
+        removeVariableBtn.addEventListener("click", () => {
+          variableDiv.remove();
+        });
+        variablesContainer.appendChild(variableDiv);
+      });
+
+      // save token button click handler
+      saveTokenBtn.addEventListener("click", () => {
+        const newToken = prompt("Enter a new token:");
+        if (newToken) {
+          localStorage.setItem("token", newToken);
+          token = newToken;
+          tokenInput.value = newToken;
+        }
+      });
+    </script>
+  </body>
+</html>
