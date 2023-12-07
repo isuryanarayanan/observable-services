@@ -20,11 +20,12 @@ import pudb
 logging.config.dictConfig(logger_config)
 logger = logging.getLogger(__name__)
 
+
 class Query(graphene.ObjectType):
     hello = graphene.String(description="A simple greeting")
 
     def resolve_hello(self, info):
-        pudb.set_trace()
+        # pudb.set_trace()
         log(logger, 'info', {'message': 'Hello world!', 'description': 'A simple greeting', 'api': 'hello', 'user': 'anonymous'})
         return "Hello, world!"
 
